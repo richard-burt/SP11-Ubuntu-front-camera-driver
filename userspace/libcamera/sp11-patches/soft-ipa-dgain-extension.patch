@@ -1,0 +1,121 @@
+--- a/src/ipa/simple/soft_simple.cpp
++++ b/src/ipa/simple/soft_simple.cpp
+@@ -5,6 +5,7 @@
+  * Simple Software Image Processing Algorithm module
+  */
+ 
++#include <algorithm>
+ #include <chrono>
+ #include <stdint.h>
+ #include <sys/mman.h>
+@@ -249,6 +250,45 @@
+ 		context_.configuration.agc.againMinStep = 1.0;
+ 	}
+ 
++	/*
++	 * Digital-gain extension (SP11/IMX681): sensors modelled with a
++	 * CameraSensorHelper may also expose V4L2_CID_DIGITAL_GAIN. If so,
++	 * allow the AGC's target gain to exceed the sensor's analogue
++	 * ceiling; the surplus is applied on the digital path when the
++	 * values are written back to the sensor.
++	 */
++	context_.configuration.agc.dgainSupported = false;
++	context_.configuration.agc.dgainCodeMin = 0;
++	context_.configuration.agc.dgainCodeMax = 0;
++	context_.configuration.agc.sensorAgainMax = 0.0;
++	if (camHelper_) {
++		const auto dgainInfo = sensorInfoMap_.find(V4L2_CID_DIGITAL_GAIN);
++		if (dgainInfo != sensorInfoMap_.cend()) {
++			int32_t dgainCodeMin = dgainInfo->second.min().get<int32_t>();
++			int32_t dgainCodeMax = dgainInfo->second.max().get<int32_t>();
++			if (dgainCodeMax > dgainCodeMin && dgainCodeMin > 0) {
++				double dgainMaxGain =
++					static_cast<double>(dgainCodeMax) / dgainCodeMin;
++				context_.configuration.agc.dgainSupported = true;
++				context_.configuration.agc.dgainCodeMin = dgainCodeMin;
++				context_.configuration.agc.dgainCodeMax = dgainCodeMax;
++				/*
++				 * The sensor's minimum digital gain code
++				 * corresponds to a 1.0x gain.
++				 */
++				context_.configuration.agc.sensorAgainMax =
++					context_.configuration.agc.againMax;
++				context_.configuration.agc.againMax *= dgainMaxGain;
++
++				LOG(IPASoft, Info)
++					<< "Digital gain supported up to "
++					<< dgainMaxGain
++					<< "x (codes " << dgainCodeMin << "-"
++					<< dgainCodeMax << ")";
++			}
++		}
++	}
++
+ 	for (auto const &algo : algorithms()) {
+ 		int ret = algo->configure(context_, configInfo);
+ 		if (ret)
+@@ -305,10 +345,33 @@
+ 		sensorControls.get(V4L2_CID_EXPOSURE).get<int32_t>();
+ 	int32_t again = sensorControls.get(V4L2_CID_ANALOGUE_GAIN).get<int32_t>();
+ 	frameContext.sensor.gain = camHelper_ ? camHelper_->gain(again) : again;
++	if (context_.configuration.agc.dgainSupported &&
++	    sensorControls.contains(V4L2_CID_DIGITAL_GAIN)) {
++		/*
++		 * The reported gain is the product of the analogue gain and
++		 * the digital gain (the former being limited to the sensor's
++		 * analogue ceiling).
++		 */
++		frameContext.sensor.gain *=
++			static_cast<double>(sensorControls.get(V4L2_CID_DIGITAL_GAIN).get<int32_t>()) /
++			context_.configuration.agc.dgainCodeMin;
++	}
+ 
+ 	ControlList metadata(controls::controls);
+ 	for (auto const &algo : algorithms())
+ 		algo->process(context_, frame, frameContext, stats_, metadata);
++	if (context_.configuration.agc.dgainSupported) {
++		/*
++		 * Report the analogue share (limited to the sensor ceiling)
++		 * and the digital share separately.
++		 */
++		metadata.set(controls::AnalogueGain,
++			     std::min(frameContext.sensor.gain,
++				      context_.configuration.agc.sensorAgainMax));
++		metadata.set(controls::DigitalGain,
++			     std::max(1.0, frameContext.sensor.gain /
++						   context_.configuration.agc.sensorAgainMax));
++	}
+ 	metadataReady.emit(frame, metadata);
+ 
+ 	/* Sanity check */
+@@ -320,10 +383,27 @@
+ 
+ 	ControlList ctrls(sensorInfoMap_);
+ 
+-	auto &againNew = frameContext.sensor.gain;
++	double againNew = frameContext.sensor.gain;
++	int32_t againCode = static_cast<int32_t>(camHelper_ ? camHelper_->gainCode(againNew)
++							  : againNew);
++	if (context_.configuration.agc.dgainSupported && camHelper_ &&
++	    againNew > context_.configuration.agc.sensorAgainMax) {
++		/*
++		 * The target gain is above the sensor's analogue ceiling:
++		 * pin the analogue gain there and put the surplus on the
++		 * digital path.
++		 */
++		double dgain = againNew / context_.configuration.agc.sensorAgainMax;
++		int32_t dgainCode = std::clamp(
++			static_cast<int32_t>(dgain * context_.configuration.agc.dgainCodeMin),
++			context_.configuration.agc.dgainCodeMin,
++			context_.configuration.agc.dgainCodeMax);
++		ctrls.set(V4L2_CID_DIGITAL_GAIN, dgainCode);
++		againCode = static_cast<int32_t>(camHelper_->gainCode(
++			context_.configuration.agc.sensorAgainMax));
++	}
+ 	ctrls.set(V4L2_CID_EXPOSURE, frameContext.sensor.exposure);
+-	ctrls.set(V4L2_CID_ANALOGUE_GAIN,
+-		  static_cast<int32_t>(camHelper_ ? camHelper_->gainCode(againNew) : againNew));
++	ctrls.set(V4L2_CID_ANALOGUE_GAIN, againCode);
+ 
+ 	setSensorControls.emit(ctrls);
+ }

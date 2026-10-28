@@ -54,7 +54,7 @@ Result: sessions converge and *hold* (repeatable `std ≤ 0.08` over the last
 | `dtb/` | Camera DT overlay sources, patchers and patched blobs |
 | `install/` | Bring-up, recovery, deploy, debug and sweep scripts + the canonical `libcamera-smiapp.yaml` tuning |
 | `tools/` | `sp11-liveness.{py,sh}` — per-frame DQBUF stream-liveness instrument (ground truth for stall/death diagnosis) |
-| `userspace/` | libcamera patch, tuning YAMLs, PipeWire conf, systemd units (from the base work) |
+| `userspace/` | libcamera patches (upstream soft-IPA patch and the SP11 patch set in `sp11-patches/`), tuning YAMLs, PipeWire conf, systemd units |
 | `sensor-data/` | factory init register dumps, mode tables, CCS firmware, sensor tuning YAML |
 | `docs/` | base-work dossier and notes |
 | `scripts/` | base-work debug utilities (raw→PNG, CCI/C-PHY readers, sweeps) |
@@ -89,11 +89,10 @@ The runtime system this was developed on installs:
 - Soft-IPA has no noise-reduction stage (dim-room grain; more light is the
   free mitigation) and no lens-dewarp (Windows applies MFT LDC; FOV parity
   holds anyway).
-- A downstream colour-consistency issue specific to the PipeWire → Snapshot
-  JPEG encode path is under investigation (the direct libcamera ISP output
-  is neutral; raw-band measurements agree).
-- libcamera AE starts near its exposure minimum by default and ramps
-  conservatively; convergence time ~15 s from a cold control state.
+- AE/AWB convergence: stream start settles in a few seconds (fast ladder +
+  max-exposure start in `sp11-patches/`); during that ~1–2 s window the
+  auto white balance is still converging and early captures can look
+  colour-shifted — let the preview settle before judging colour.
 
 ## Upstreaming candidates
 

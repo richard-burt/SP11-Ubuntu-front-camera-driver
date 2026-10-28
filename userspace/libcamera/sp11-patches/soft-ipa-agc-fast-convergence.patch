@@ -1,0 +1,54 @@
+--- a/src/ipa/simple/algorithms/agc.cpp
++++ b/src/ipa/simple/algorithms/agc.cpp
+@@ -9,6 +9,8 @@
+ 
+ #include <stdint.h>
+ 
++#include <algorithm>
++
+ #include <libcamera/base/log.h>
+ 
+ #include "control_ids.h"
+@@ -46,10 +48,17 @@
+ 	/*
+ 	 * kExpDenominator of 10 gives ~10% increment/decrement;
+ 	 * kExpDenominator of 5 - about ~20%
++	 *
++	 * SP11: the ladder start-point and step sizes were raised for
++	 * faster convergence (SP11-AE-SPEED, see the start-of-stream
++	 * initialisation of exposure/again in process(); the shipped
++	 * 10%/1-frame walk took ~15 s to settle after stream start).
++	 * Up-steps: +40% per stats cycle; down-steps: -30%. The hysteresis
++	 * bounds are unchanged.
+ 	 */
+ 	static constexpr uint8_t kExpDenominator = 10;
+-	static constexpr uint8_t kExpNumeratorUp = kExpDenominator + 1;
+-	static constexpr uint8_t kExpNumeratorDown = kExpDenominator - 1;
++	static constexpr uint8_t kExpNumeratorUp = 14;
++	static constexpr uint8_t kExpNumeratorDown = 7;
+ 
+ 	int32_t &exposure = frameContext.sensor.exposure;
+ 	double &again = frameContext.sensor.gain;
+@@ -114,10 +123,20 @@
+ 		/*
+ 		 * Init active-state from sensor values in case updateExposure()
+ 		 * does not run for the first frame.
++		 *
++		 * SP11: start the ladder at maximum exposure with minimum
++		 * gain instead of the sensor's (near-minimum) current
++		 * values. The sensor comes up with its exposure register
++		 * near the low end, and from there the old ladder needed
++		 * ~15 s to reach an indoor equilibrium. Exposure-max +
++		 * gain-min is much closer to a typical equilibrium, and a
++		 * bright scene only pays a short downward walk.
+ 		 */
+-		context.activeState.agc.exposure = frameContext.sensor.exposure;
+-		context.activeState.agc.again = frameContext.sensor.gain;
++		context.activeState.agc.exposure = context.configuration.agc.exposureMax;
++		context.activeState.agc.again = context.configuration.agc.againMin;
+ 		context.activeState.agc.valid = true;
++		frameContext.sensor.exposure = context.activeState.agc.exposure;
++		frameContext.sensor.gain = context.activeState.agc.again;
+ 	}
+ 
+ 	if (!stats->valid) {

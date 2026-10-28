@@ -1,0 +1,56 @@
+--- a/src/ipa/libipa/camera_sensor_helper.cpp
++++ b/src/ipa/libipa/camera_sensor_helper.cpp
+@@ -7,6 +7,7 @@
+  */
+ #include "camera_sensor_helper.h"
+ 
++#include <algorithm>
+ #include <cmath>
+ #include <limits>
+ 
+@@ -642,6 +643,45 @@
+ };
+ REGISTER_CAMERA_SENSOR_HELPER("imx477", CameraSensorHelperImx477)
+ 
++/*
++ * Sony IMX681 (Surface Pro 11 front camera).
++ *
++ * The sensor reports its analogue gain model through the CCS standard
++ * controls: m0=0, c0=1024, m1=-1, c1=1024, i.e.
++ *
++ *     gain(code) = 1024 / (1024 - code), code < 960
++ *     gainCode(g) = 1024 - 1024 / g            (rounded/truncated, 0..960)
++ *
++ * which is a pole at 1024 with a 16.0x ceiling at code 960. Values were
++ * verified against the shipped Surface Pro 11 ipa_soft_simple.so (the
++ * CameraSensorHelperImx681 gain()/gainCode() implementations there are
++ * numerically identical) and against the kernel's control ranges
++ * (analogue_gain 0-960; digital_gain 256-4095).
++ */
++class CameraSensorHelperImx681 : public CameraSensorHelper
++{
++public:
++	CameraSensorHelperImx681()
++	{
++		/* From datasheet: 64 at 10 bits. */
++		blackLevel_ = 4096;
++	}
++
++	double gain(uint32_t gainCode) const override
++	{
++		if (gainCode >= 960)
++			return 16.0;
++		return 1024.0 / (1024.0 - gainCode);
++	}
++
++	uint32_t gainCode(double gain) const override
++	{
++		int code = gain > 1.0 ? int(1024.0 - 1024.0 / gain) : 0;
++		return std::min(std::max(code, 0), 960);
++	}
++};
++REGISTER_CAMERA_SENSOR_HELPER("imx681", CameraSensorHelperImx681)
++
+ class CameraSensorHelperImx708 : public CameraSensorHelper
+ {
+ public:

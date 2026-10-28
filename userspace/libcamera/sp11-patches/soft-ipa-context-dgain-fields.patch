@@ -1,0 +1,18 @@
+--- a/src/ipa/simple/ipa_context.h
++++ b/src/ipa/simple/ipa_context.h
+@@ -28,6 +28,15 @@
+ 	struct {
+ 		int32_t exposureMin, exposureMax;
+ 		double againMin, againMax, again10, againMinStep;
++		/*
++		 * Digital-gain extension (SP11/IMX681): if the sensor
++		 * exposes V4L2_CID_DIGITAL_GAIN, the AGC target gain may
++		 * exceed the sensor's analogue ceiling; the surplus is
++		 * applied on the digital path.
++		 */
++		bool dgainSupported;
++		double sensorAgainMax;
++		int32_t dgainCodeMin, dgainCodeMax;
+ 		utils::Duration lineDuration;
+ 	} agc;
+ 	struct {
