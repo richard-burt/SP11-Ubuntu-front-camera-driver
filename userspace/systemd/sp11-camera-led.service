@@ -1,0 +1,11 @@
+[Unit]
+Description=SP11: privacylampje aan tijdens cameragebruik
+After=sp11-camera.service
+
+[Service]
+ExecStart=/usr/local/sbin/sp11-camera-led
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

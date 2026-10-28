@@ -1,0 +1,71 @@
+diff --git a/src/ipa/simple/algorithms/adjust.cpp b/src/ipa/simple/algorithms/adjust.cpp
+index 068e984..903a3df 100644
+--- a/src/ipa/simple/algorithms/adjust.cpp
++++ b/src/ipa/simple/algorithms/adjust.cpp
+@@ -24,8 +24,13 @@ constexpr float kDefaultSaturation = 1.0f;
+ 
+ LOG_DEFINE_CATEGORY(IPASoftAdjust)
+ 
+-int Adjust::init(IPAContext &context, [[maybe_unused]] const YamlObject &tuningData)
++int Adjust::init(IPAContext &context, const YamlObject &tuningData)
+ {
++	/* SP11: sta afstemdefaults toe in het tuningbestand (smiapp.yaml). */
++	tunedGamma_ = tuningData["gamma"].get<float>(-1.0f);
++	tunedContrast_ = tuningData["contrast"].get<float>(-1.0f);
++	tunedSaturation_ = tuningData["saturation"].get<float>(-1.0f);
++
+ 	context.ctrlMap[&controls::Gamma] =
+ 		ControlInfo(0.1f, 10.0f, kDefaultGamma);
+ 	context.ctrlMap[&controls::Contrast] =
+@@ -39,9 +44,14 @@ int Adjust::init(IPAContext &context, [[maybe_unused]] const YamlObject &tuningD
+ int Adjust::configure(IPAContext &context,
+ 		      [[maybe_unused]] const IPAConfigInfo &configInfo)
+ {
+-	context.activeState.knobs.gamma = kDefaultGamma;
+-	context.activeState.knobs.contrast = std::optional<float>();
+-	context.activeState.knobs.saturation = std::optional<float>();
++	context.activeState.knobs.gamma =
++		tunedGamma_ > 0 ? tunedGamma_ : kDefaultGamma;
++	context.activeState.knobs.contrast =
++		tunedContrast_ > 0 ? std::optional<float>(tunedContrast_)
++				   : std::optional<float>();
++	context.activeState.knobs.saturation =
++		tunedSaturation_ > 0 ? std::optional<float>(tunedSaturation_)
++				     : std::optional<float>();
+ 
+ 	return 0;
+ }
+diff --git a/src/ipa/simple/algorithms/adjust.h b/src/ipa/simple/algorithms/adjust.h
+index fb133b1..0c2696a 100644
+--- a/src/ipa/simple/algorithms/adjust.h
++++ b/src/ipa/simple/algorithms/adjust.h
+@@ -43,6 +43,11 @@ public:
+ 
+ private:
+ 	void applySaturation(Matrix<float, 3, 3> &ccm, float saturation);
++
++	/* SP11: defaults uit het tuningbestand; <= 0 betekent niet gezet. */
++	float tunedGamma_ = -1.0f;
++	float tunedContrast_ = -1.0f;
++	float tunedSaturation_ = -1.0f;
+ };
+ 
+ } /* namespace ipa::soft::algorithms */
+diff --git a/src/ipa/simple/algorithms/agc.cpp b/src/ipa/simple/algorithms/agc.cpp
+index 2f7e040..217180d 100644
+--- a/src/ipa/simple/algorithms/agc.cpp
++++ b/src/ipa/simple/algorithms/agc.cpp
+@@ -28,7 +28,12 @@ static constexpr unsigned int kExposureBinsCount = 5;
+  * The exposure is optimal when the mean sample value of the histogram is
+  * in the middle of the range.
+  */
+-static constexpr float kExposureOptimal = kExposureBinsCount / 2.0;
++/*
++ * SP11: was kExposureBinsCount / 2.0 (= 2.5); de standaard mikt op ~18%
++ * grijs en dat oogt als webcam te donker. 3.1 geeft een prettiger
++ * gemiddelde zonder highlights structureel te clippen.
++ */
++static constexpr float kExposureOptimal = 3.5;
+ 
+ /*
+  * This implements the hysteresis for the exposure adjustment.

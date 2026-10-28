@@ -1,0 +1,22 @@
+# Local build droppings / editor / OS junk (safety net — the tree is curated)
+*.o
+*.o.cmd
+.*.cmd
+Module.symvers
+modules.order
+*.d
+*.mod
+*.mod.c
+.tmp_versions/
+__pycache__/
+*.pyc
+.DS_Store
+*~
+# Project-private material that must never enter this repo
+todo.md
+history.md
+audit/
+tmp/
+windows-payload/
+docs/evidence-20261028/
+evidence-dmesg-*.txt

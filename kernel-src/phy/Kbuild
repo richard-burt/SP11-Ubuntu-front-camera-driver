@@ -1,0 +1,2 @@
+obj-m := phy-qcom-mipi-csi2.o
+phy-qcom-mipi-csi2-objs := phy-qcom-mipi-csi2-core.o phy-qcom-mipi-csi2-3ph-dphy.o

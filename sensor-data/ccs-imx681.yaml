@@ -1,0 +1,75 @@
+---
+# Statische CCS-data voor de IMX681 in de Surface Pro 11 (voorcamera).
+#
+# Waarom dit bestand bestaat:
+# Vier CCS 1.1-limietregisters geven bij deze sensor 0x00000000 terug:
+#   0x123c min_op_sys_clk_freq_rev_mhz
+#   0x1240 max_op_sys_clk_freq_rev_mhz
+#   0x1244 min_op_pix_clk_freq_rev_mhz
+#   0x1248 max_op_pix_clk_freq_rev_mhz
+# Als IEEE 754 is 0x00000000 een float met exponentveld nul. ccs.ko doet dan in
+# float_to_u32_mul_1000000() de shift `man >>= -exp` met exp = -127, wat een
+# UBSAN shift-out-of-bounds geeft; en een maximum van 0 verwerpt vervolgens élke
+# link-frequentie ("no valid link frequencies for 10/8 bpp").
+#
+# Hier zetten we die vier op de waarden van hun niet-rev tegenhangers, die de
+# sensor wél correct rapporteert (0x1164/0x1168 = 1050/2500 MHz en
+# 0x1170/0x1174 = 18,75/178,58 MHz). De rest van de limieten laten we met rust;
+# die zijn gezond (ext clk 9-27 MHz, PLL-ingang 6-12 MHz, multiplier 162-360).
+#
+# Bestandsnaam die ccs.ko zoekt: ccs/ccs-sensor-4260-0681-0010.fw
+#   4260 = fabrikant-id, 0681 = model (IMX681), 0010 = revisie.
+#
+# Bouwen (vanuit de ccs-tools-map, want die zoekt ccs-regs.asc in de werkmap):
+#   ./ccs-yaml-to-bin -s -o ../ccs-sensor-4260-0681-0010.fw ../ccs-imx681.yaml
+
+data-version:
+  version-major		: 1
+  version-minor		: 0
+  date-year		: 2026
+  date-month		: 8
+  date-day		: 11
+
+sensor-read-only-regs:
+# Alleen de vier registers die aantoonbaar kapot zijn: ze geven 0x00000000 terug,
+# wat als IEEE 754 een exponentveld van nul is en in ccs.ko een UBSAN-shift geeft.
+  - min_op_sys_clk_freq_rev_mhz		0x44834000   # 1050,00 MHz
+  - max_op_sys_clk_freq_rev_mhz		0x451c4000   # 2500,00 MHz
+  - min_op_pix_clk_freq_rev_mhz		0x41960000   #   18,75 MHz
+  - max_op_pix_clk_freq_rev_mhz		0x4332947b   #  178,58 MHz
+
+# Twee registers met een onmogelijke waarde: nul lanes en nul bits per lane
+# bestaan niet. De sensor is 4-lane (num_of_vt_lanes = 4) en levert RAW10.
+# clock_calculation (0x1138 = 1) blijft ongemoeid: dat is de eigen keuze van de
+# sensor voor het lane-speed-model, en op 0 zetten brak de berekening juist.
+  - num_of_op_lanes			0x04
+  - op_bits_per_lane			0x0a
+
+# De echte oorzaak dat de single-PLL-tak meteen afbrak: ccs_pll_calculate()
+# gebruikt in die modus de VT-limieten, en weigert direct met -EINVAL als
+# min_pll_op_clk_freq_hz nul is. Register 0x1118 leest 0x044f3000, wat als
+# IEEE 754 neerkomt op 2,4e-36 en dus afrondt naar 0. Als U16.U16-vastekomma is
+# het 1103,19 MHz -- een volstrekt normale ondergrens. We zetten hem daarom op
+# diezelfde waarde, nu correct als IEEE 754 gecodeerd.
+# Hiermee is de dual_pll-override niet meer nodig; die liet de driver bovendien
+# PLL_MODE=DUAL naar een single-PLL-sensor schrijven en op_pix_clk_div op 0.
+  - min_pll_op_clk_freq_mhz		0x4489e600   # 1103,19 MHz
+
+# Voor C-PHY: de PLL-rekenaar gebruikt een pixelklokdeler van 4 (bpp*7/16),
+# waardoor op_pix = link/2. Bij de enige haalbare C-PHY-link (864 MHz: PLL =
+# 9,6 x 180 = 1728, vt_pix = 172,8 binnen 162-180) komt op_pix op 432 MHz uit.
+# De sensorlimiet van 178,58 is voor dit pad slechts een rekencheck: de echte
+# sensor-PLL wordt toch door de Windows-modustabel geschreven. Verruimen dus.
+  - max_op_pix_clk_freq_mhz		0x43e10000   # 450 MHz (was 178,58)
+
+# Voor de Gilerson-linkfrequentie 969,6 MHz: vt_pix wordt dan 161,6 MHz en de
+# sensor meldt een minimum van 162. Een fractie verruimen zodat de driver-PLL
+# 969,6 uit de DT accepteert (de echte sensor-PLL schrijft de Gilerson-tabel).
+  - min_vt_pix_clk_freq_mhz		0x43200000   # 160 MHz (was 162)
+
+
+
+license:
+  filename				: bsd-3-clause
+
+end:

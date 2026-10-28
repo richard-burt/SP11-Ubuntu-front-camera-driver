@@ -1,0 +1,2 @@
+obj-m += ccs.o
+ccs-y := ccs-core.o ccs-reg-access.o ccs-quirk.o ccs-limits.o ccs-data.o

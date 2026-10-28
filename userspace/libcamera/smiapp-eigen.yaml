@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: CC0-1.0
+# SP11-voorcamera (IMX681 via ccs/"smiapp").
+# ct 4500: gekalibreerd op wit plafond, warme binnenverlichting (13 aug).
+# ct 6500: daglicht, mild (de 4500-matrix gaf buiten paars beeld).
+%YAML 1.1
+---
+version: 1
+algorithms:
+  - BlackLevel:
+  - Awb:
+  - Ccm:
+      ccms:
+        - ct: 4500
+          ccm: [ 2.37, -0.67, -0.22,
+                -0.46,  1.90, -0.12,
+                -0.05, -0.20,  1.63 ]
+        - ct: 6500
+          ccm: [ 1.45, -0.35, -0.10,
+                -0.20,  1.45, -0.25,
+                -0.05, -0.35,  1.40 ]
+  - Adjust:
+      gamma: 2.8
+      contrast: 1.15
+      saturation: 1.15
+  - Agc:

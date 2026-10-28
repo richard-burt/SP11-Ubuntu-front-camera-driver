@@ -1,0 +1,11 @@
+[Unit]
+Description=SP11 voorcamera: modules laden met juiste parameters
+After=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/jeroen/sp11-camera/camera-prepare.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

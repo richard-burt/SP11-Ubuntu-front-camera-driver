@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: CC0-1.0
+# SPDX-FileCopyrightText: 2026 turbinebmw
+%YAML 1.1
+---
+version: 1
+algorithms:
+  # The measured black pedestal is 64 at 10 bits. Simple IPA tuning values use
+  # libcamera's 16-bit scale, where 64 << 6 is 4096.
+  - BlackLevel:
+      blackLevel: 4096
+  - Awb:
+  # CCMs decoded from the Windows tuned bin com.surface.tuned.ffc_imx681.bin
+  # (chromatix mod_cc13 instance @tree id 1443, CCT bands 1-2400/2700-3300/
+  # 3700-4200/4800-10000 K; ct values are band midpoints). Row offsets all 0.
+  - Ccm:
+      ccms:
+        - ct: 1500
+          ccm: [ 1.9103, -0.7345, -0.1759, -0.3029, 1.4363, -0.1334, -0.1496, -1.1824, 2.332 ]
+        - ct: 3000
+          ccm: [ 1.4265, -0.1718, -0.2548, -0.3743, 1.4721, -0.0979, -0.083, -0.6869, 1.77 ]
+        - ct: 4000
+          ccm: [ 1.5085, -0.426, -0.0824, -0.376, 1.5217, -0.1457, -0.0196, -0.5436, 1.5632 ]
+        - ct: 6500
+          ccm: [ 1.2905, -0.2883, -0.0022, -0.2417, 1.3153, -0.0735, 0.0126, -0.6722, 1.6596 ]
+  # A color correction matrix must be measured from a controlled chart before
+  # enabling Ccm. The generic identity matrix is not a calibration.
+  - Adjust:
+      gamma: 2.8
+      contrast: 1.15
+      saturation: 1.15
+  - Agc:
+...
+# Adjust defaults from the sp11 reference recipe (gamma/contrast/saturation
+# tuned for this panel; Ccm rows are the Windows factory matrices verified
+# against com.surface.tuned.ffc_imx681.bin).

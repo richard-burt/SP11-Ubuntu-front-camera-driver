@@ -1,0 +1,15 @@
+[Unit]
+Description=SP11: PipeWire herstarten als de libcamera-node in bufferfout hangt
+After=pipewire.service
+
+[Service]
+# De spa-libcamera-plugin (pipewire 1.6.2) blijft na enkele webcam-sessies
+# hangen in "can't import mem"/"Buffer allocation failed" — kernel en
+# libcamera zelf zijn gezond (bewezen met 5x cam-open/close). Tot een
+# pipewire-fix: automatisch herstarten zodra de fout optreedt.
+ExecStart=/bin/bash -c 'journalctl --user -f -n0 -u pipewire | grep --line-buffered -E "Buffer allocation failed|FATAL default|assertion .* failed" | while read -r _; do systemctl --user restart pipewire pipewire-pulse wireplumber; sleep 15; done'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
