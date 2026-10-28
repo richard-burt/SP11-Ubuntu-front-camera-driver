@@ -1,5 +1,10 @@
 # SP11-Ubuntu-front-camera-driver
 
+**Status 2026-10-28: camera working.** The SP11 front camera streams with
+Windows-comparable auto-exposure and neutral colour; capture is stable and
+auto-exposure settles in a couple of seconds after stream start. See
+*What works* for the verified end state.
+
 Sony IMX681 front camera on the **Surface Pro 11 (Snapdragon X Elite, x1e80100
 "Denali")** under **Ubuntu Linux** — kernel bring-up, device tree, tuning and
 user-space plumbing that makes the built-in webcam work at Windows-comparable
@@ -16,8 +21,12 @@ freeze-fix patches documented and included.
   ~174–188/255 in the same daylight scene Windows shows 174–183.
 - Streaming sessions are **stable** (800-frame instrument baseline, 800/800
   frames, no gaps, 32.7 s continuous).
-- Colour: factory CCM/white-balance tuning from the Windows driver; grey-world
-  AWB gains land within ~5 % of ideal under the shipped soft-IPA.
+- Colour: correct in all stable captures — raw instrument, direct libcamera
+  ISP output, PipeWire/GStreamer JPEG and GNOME Snapshot JPEG all measure
+  neutral (G/R ≈ 0.98–1.04 global); verified with the 4-way paired capture
+  on a plate/pens daylight scene (2026-10-28). During the first ~1–2 s of a
+  fresh stream the auto white balance is still converging — let the preview
+  settle before judging colour.
 - Privacy LED follows streaming.
 - The known "camera freezes a few minutes in" defect is **root-caused and
   fixed** (see *Freeze fix* below).
